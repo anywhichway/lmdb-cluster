@@ -1,0 +1,38 @@
+{
+  "name": "lmdb-cluster",
+  "version": "0.0.1",
+  "description": "A clustered version of lmdb that supports a REST API, a unified POST API, and sockets.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anywhichway/lmdb-cluster.git"
+  },
+  "keywords": [
+    "lmdb",
+    "cluster",
+    "database",
+    "replication",
+    "socket"
+  ],
+  "author": "Simon Y. Blackwell",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/anywhichway/lmdb-cluster/issues"
+  },
+  "homepage": "https://github.com/anywhichway/lmdb-cluster#readme",
+  "dependencies": {
+    "@koa/router": "^12.0.0",
+    "@socket.io/cluster-adapter": "^0.2.2",
+    "@socket.io/sticky": "^1.0.3",
+    "fastify": "^4.15.0",
+    "fastify-socket.io": "^4.0.0",
+    "lmdb": "^2.7.11",
+    "socket.io": "^4.6.1"
+  },
+  "devDependencies": {
+    "jest": "^29.5.0"
+  }
+}
