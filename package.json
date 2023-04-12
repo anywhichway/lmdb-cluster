@@ -1,10 +1,10 @@
 {
   "name": "lmdb-cluster",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "A clustered version of lmdb that supports a REST API, a unified POST API, and sockets.",
   "main": "index.js",
   "scripts": {
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --detectOpenHandles --coverage"
+    "test": "jest --detectOpenHandles --coverage"
   },
   "repository": {
     "type": "git",
@@ -24,7 +24,6 @@
   },
   "homepage": "https://github.com/anywhichway/lmdb-cluster#readme",
   "dependencies": {
-    "@koa/router": "^12.0.0",
     "@socket.io/cluster-adapter": "^0.2.2",
     "@socket.io/sticky": "^1.0.3",
     "fastify": "^4.15.0",
@@ -33,6 +32,7 @@
     "socket.io": "^4.6.1"
   },
   "devDependencies": {
-    "jest": "^29.5.0"
+    "jest": "^29.5.0",
+    "mkcert": "^1.5.1"
   }
 }

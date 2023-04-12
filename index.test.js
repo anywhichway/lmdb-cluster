@@ -40,10 +40,12 @@ const serializeSpecial = (key,value) => {
     return value;
 }
 
+const host = "http://localhost:3000"; // https://localhost http://localhost:3000
+
 test("put number", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello?version=1",{
+    const response = await fetch(`${host}/data/test/test/hello?version=1`,{
         method:"PUT",
-        body:1,
+        body:1
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
@@ -51,14 +53,14 @@ test("put number", async () => {
     expect(json).toEqual(true);
 })
 test("get number", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello");
+    const response = await fetch(`${host}/data/test/test/hello`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const json = await response.json();
     expect(json).toEqual(1);
 })
 test("put Infinity", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello?version=1",{
+    const response = await fetch(`${host}/data/test/test/hello?version=1`,{
         method:"PUT",
         body:serializeSpecial(null,Infinity),
     });
@@ -68,7 +70,7 @@ test("put Infinity", async () => {
     expect(json).toEqual(true);
 })
 test("get Infinity", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello");
+    const response = await fetch(`${host}/data/test/test/hello`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const json = await response.json(),
@@ -76,7 +78,7 @@ test("get Infinity", async () => {
     expect(result).toEqual(Infinity);
 })
 test("put -Infinity", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello?version=1",{
+    const response = await fetch(`${host}/data/test/test/hello?version=1`,{
         method:"PUT",
         body:serializeSpecial(null,-Infinity),
     });
@@ -86,7 +88,7 @@ test("put -Infinity", async () => {
     expect(json).toEqual(true);
 })
 test("get -Infinity", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello");
+    const response = await fetch(`${host}/data/test/test/hello`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const json = await response.json(),
@@ -94,7 +96,7 @@ test("get -Infinity", async () => {
     expect(result).toEqual(-Infinity);
 })
 test("put NaN", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello?version=1",{
+    const response = await fetch(`${host}/data/test/test/hello?version=1`,{
         method:"PUT",
         body:serializeSpecial(null,NaN),
     });
@@ -104,7 +106,7 @@ test("put NaN", async () => {
     expect(json).toEqual(true);
 })
 test("get NaN", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello");
+    const response = await fetch(`${host}/data/test/test/hello`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const json = await response.json(),
@@ -113,7 +115,7 @@ test("get NaN", async () => {
 })
 const now = new Date();
 test("put Date", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello?version=1",{
+    const response = await fetch(`${host}/data/test/test/hello?version=1`,{
         method:"PUT",
         body:serializeSpecial(null,now),
     });
@@ -123,7 +125,7 @@ test("put Date", async () => {
     expect(json).toEqual(true);
 })
 test("get Date", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello");
+    const response = await fetch(`${host}/data/test/test/hello`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const json = await response.json(),
@@ -132,7 +134,7 @@ test("get Date", async () => {
     expect(result.getTime()).toEqual(now.getTime());
 })
 test("put string", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello?version=1",{
+    const response = await fetch(`${host}/data/test/test/hello?version=1`,{
         method:"PUT",
         body:"world",
     });
@@ -142,21 +144,21 @@ test("put string", async () => {
     expect(json).toEqual(true);
 })
 test("get string", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello");
+    const response = await fetch(`${host}/data/test/test/hello`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const json = await response.json();
     expect(json).toEqual("world");
 })
 test("get version", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello?version=1");
+    const response = await fetch(`${host}/data/test/test/hello?version=1`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const json = await response.json();
     expect(json).toEqual("world");
 })
 test("get entry", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello?entry=true");
+    const response = await fetch(`${host}/data/test/test/hello?entry=true`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const json = await response.json();
@@ -165,14 +167,14 @@ test("get entry", async () => {
     expect(json.version).toEqual(1);
 })
 test("get version fail", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello?version=2");
+    const response = await fetch(`${host}/data/test/test/hello?version=2`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const json = await response.json();
     expect(json).toEqual(null);
 })
 test("get entry and version fail", async () => {
-    const response = await fetch("http://localhost:3000/data/test/test/hello?entry=true&version=2");
+    const response = await fetch(`${host}/data/test/test/hello?entry=true&version=2`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const json = await response.json();
@@ -181,62 +183,62 @@ test("get entry and version fail", async () => {
 describe("get range", () => {
     beforeAll(async () => {
         for(let i=1;i<10;i++){
-            await fetch(`http://localhost:3000/data/test/test/hello${i}?version=2`,{
+            await fetch(`${host}/data/test/test/hello${i}?version=2`,{
                 method:"PUT",
                 body:"world"+i,
             });
         }
     });
     test("get all", async () => {
-        const response = await fetch("http://localhost:3000/data/test/test/");
+        const response = await fetch(`${host}/data/test/test/`);
         expect(response.status).toBe(200);
         expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
         const json = await response.json();
         expect(json.done).toEqual(true);
-        expect(json.values?.constructor.name).toEqual("Array");
-        expect(json.values?.length).toEqual(10);
+        expect(json.value?.constructor.name).toEqual("Array");
+        expect(json.value?.length).toEqual(10);
     })
     test("get start", async () => {
         const start = JSON.stringify((["hello"])),
-            response = await fetch("http://localhost:3000/data/test/test/?start="+encodeURIComponent(start));
+            response = await fetch(`${host}/data/test/test/?start=`+encodeURIComponent(start));
         expect(response.status).toBe(200);
         expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
         const json = await response.json();
         expect(json.done).toEqual(true);
-        expect(json.values?.constructor.name).toEqual("Array");
-        expect(json.values?.length).toEqual(10);
+        expect(json.value?.constructor.name).toEqual("Array");
+        expect(json.value?.length).toEqual(10);
     })
     test("get 5 then 5", async () => {
-        const url = "http://localhost:3000/data/test/test/?limit=5"
+        const url = `${host}/data/test/test/?limit=5`;
         let response = await fetch(url);
         expect(response.status).toBe(200);
         expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
         let json = await response.json();
         expect(json.done).toBeFalsy();
-        expect(json.values?.constructor.name).toEqual("Array");
-        expect(json.values?.length).toEqual(5)
+        expect(json.value?.constructor.name).toEqual("Array");
+        expect(json.value?.length).toEqual(5)
         expect(json.offset).toEqual(5);
         response = await fetch(url+"&offset="+json.offset);
         expect(response.status).toBe(200);
         expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
         json = await response.json();
         expect(json.done).toBeTruthy();
-        expect(json.values?.constructor.name).toEqual("Array");
-        expect(json.values?.length).toEqual(5);
+        expect(json.value?.constructor.name).toEqual("Array");
+        expect(json.value?.length).toEqual(5);
     })
     test("get version 1s", async () => {
-        const url = "http://localhost:3000/data/test/test/?version=2"
+        const url = `${host}/data/test/test/?version=2`;
         let response = await fetch(url);
         expect(response.status).toBe(200);
         expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
         let json = await response.json();
         expect(json.done).toEqual(true);
-        expect(json.values?.constructor.name).toEqual("Array");
-        expect(json.values?.length).toEqual(9)
+        expect(json.value?.constructor.name).toEqual("Array");
+        expect(json.value?.length).toEqual(9)
     })
 });
 test("delete fail by version", async () => {
-    const url = "http://localhost:3000/data/test/test/hello?ifVersion=2";
+    const url = `${host}/data/test/test/hello?ifVersion=2`;
     const response = await fetch(url,{
         method:"DELETE"
     });
@@ -245,8 +247,8 @@ test("delete fail by version", async () => {
     const json = await response.json();
     expect(json).toEqual(false);
 });
-/*test("delete", async () => {
-    const url = "http://localhost:3000/data/test/test/hello?ifVersion=1";
+test("delete", async () => {
+    const url = `${host}/data/test/test/hello?ifversion=1`;
     const response = await fetch(url,{
         method:"DELETE"
     });
@@ -254,7 +256,4 @@ test("delete fail by version", async () => {
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const json = await response.json();
     expect(json).toEqual(true);
-})*/
-
-
-
+})

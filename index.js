@@ -1,7 +1,7 @@
 const cluster = require("cluster");
 const http = require("http");
 const https = require("https");
-const app = require('fastify')({ logger: true })
+const fastify = require('fastify');
 const { Server } = require("socket.io");
 const numCPUs = require("os").cpus().length;
 const { setupMaster, setupWorker } = require("@socket.io/sticky");
@@ -95,13 +95,17 @@ const serializer = (value) => {
     return JSON.stringify(value,serializeSpecial);
 }
 
-const serve = async ({port=3000,serverOptions,dbroute="/data/:environment/:name",maxCPUs,useVersions,create=true,environments= {},dynamicEnvironments,dynamicDatabases=dynamicEnvironments}={}) => {
-    for(const [name,{databases= {},...options}={}] of Object.entries(environments)) {
-        const envdb = open(name,{create,...options});
+const serve = async ({serverOptions={},clusterOptions={},appOptions={},databaseOptions={}}) => {
+    const {maxCPUs} = clusterOptions,
+        {dbroute="/data/:environment/:name",environmentOptions={},environments= {},dynamicEnvironmentOptions,dynamicDatabaseOptions={}} = databaseOptions,
+        port = serverOptions?.port || (serverOptions?.https ? 443 : 3000);
+    for(const [name,{databases= {},inheritOptions,options={}}={}] of Object.entries(environments)) {
+        const envOptions = {...environmentOptions,...options};
+            envdb = open(name,envOptions);
         if(envdb) {
-            for(const [name,dboptions = options] of Object.entries(databases)) {
-                databases[name] ||= options;
-                const db = envdb.openDB(name,{create,...dboptions});
+            for(const [name,config] of Object.entries(databases)) {
+                if(!config) databases[name] = {options:{...(inheritOptions ? envOptions : {}),...options}};
+                const db = envdb.openDB(name, databases[name].options);
                 await db.close()
             }
             await envdb.close();
@@ -133,9 +137,13 @@ const serve = async ({port=3000,serverOptions,dbroute="/data/:environment/:name"
         for (let i = 0; i < Math.min(maxCPUs>=0 ? maxCPUs : numCPUs,numCPUs); i++) {
             const worker = cluster.fork();
            // worker.on("listening", () => {
-           //     worker.send({workerOptions:{environments,dynamicEnvironments,dynamicDatabases}});
+           //     worker.send({workerOptions:{environments,dynamicEnvironmentOptions,dynamicDatabaseOptions}});
            // })
         }
+
+        Object.entries(clusterOptions.on||{}).forEach(([key,value]) => {
+            cluster.on(key,value.bind(cluster));
+        })
 
         cluster.on("exit", (worker) => {
             console.log(`Worker ${worker.process.pid} died`);
@@ -154,23 +162,28 @@ const serve = async ({port=3000,serverOptions,dbroute="/data/:environment/:name"
            // });
         //})
 
-        console.log(`Worker ${process.pid} started on 3000`);
+        const app = fastify(Object.assign({},{http:serverOptions?.http,https:serverOptions?.https},appOptions));
+        if(serverOptions) {
+            delete serverOptions.http;
+            delete serverOptions.https;
+        }
         app.get('/',  (request) => 'LMDB Cluster Server')
             .delete(dbroute + '/:key', async (request,reply) => {
                 const { environment,name,key } =  request.params;
                 let env = environments[environment];
-                if(!env) {
-                    if(!dynamicEnvironments) throw new Error(`Environment  ${environment} not found in ${process.pid}`)
+                if (!env) {
+                    if (!dynamicEnvironmentOptions) throw new Error("Environment not found")
                     env = environments[environment] = {
-                        databases:{},
-                        ...dynamicEnvironments
+                        databases: {},
+                        options:dynamicEnvironmentOptions
                     }
                 }
-                if(env.databases[name]===undefined && !dynamicDatabases) throw new Error(`Database ${name} not found for environment ${environment} in ${process.pid}`);
-                const {databases,...options} = env.databases[name] || env.databases[name]===null ? {...env} : dynamicDatabases || {};
-                env.databases[name] = {...options};
-                const  envdb = open(environment,{create:true,...env}),
-                    db = envdb.openDB({name,...options});
+                if (env.databases[name] === undefined) {
+                    if (!dynamicDatabaseOptions) throw new Error("Database not found");
+                    env.databases[name] = {options:{...(env.inheritOptions ? env.options : dynamicEnvironmentOptions),...dynamicDatabaseOptions}};
+                }
+                const envdb = open(environment,env.options),
+                    db = envdb.openDB({name,...env.databases[name].options});
                 let {ifVersion} = request.query
                 ifVersion = coerce(ifVersion,"number");
                 let result = false;
@@ -186,18 +199,19 @@ const serve = async ({port=3000,serverOptions,dbroute="/data/:environment/:name"
             .get(dbroute + "/", async (request,reply) => {
                 const { environment,name } =  request.params;
                 let env = environments[environment];
-                if(!env) {
-                    if(!dynamicEnvironments) throw new Error(`Environment  ${environment} not found in ${process.pid}`)
+                if (!env) {
+                    if (!dynamicEnvironmentOptions) throw new Error("Environment not found")
                     env = environments[environment] = {
-                        databases:{},
-                        ...dynamicEnvironments
+                        databases: {},
+                        options:dynamicEnvironmentOptions
                     }
                 }
-                if(env.databases[name]===undefined && !dynamicDatabases) throw new Error(`Database ${name} not found for environment ${environment} in ${process.pid}`);
-                const {databases,...options} = env.databases[name] || env.databases[name]===null ? {...env} : dynamicDatabases || {};
-                env.databases[name] = {...options};
-                const  envdb = open(environment,{create:true,...env}),
-                    db = envdb.openDB({name,...options});
+                if (env.databases[name] === undefined) {
+                    if (!dynamicDatabaseOptions) throw new Error("Database not found");
+                    env.databases[name] = {options:{...(env.inheritOptions ? env.options : dynamicEnvironmentOptions),...dynamicDatabaseOptions}};
+                }
+                const envdb = open(environment,env.options),
+                    db = envdb.openDB({name,...env.databases[name].options});
                 let {versions,version,start,end,limit,offset,keyMatch,valueMatch} = request.query;
                 versions = coerce(versions,"boolean");
                 version = coerce(version,"number");
@@ -210,7 +224,7 @@ const serve = async ({port=3000,serverOptions,dbroute="/data/:environment/:name"
                 const range = db.getRange({start,end,offset,versions:version ? true : versions===true});
                 const result = {
                     done: false,
-                    values: [],
+                    value: [],
                     offset: offset||0
                 }
                 limit>=0 || (limit=1000);
@@ -218,7 +232,7 @@ const serve = async ({port=3000,serverOptions,dbroute="/data/:environment/:name"
                     const {done,value} = range.next();
                     if(value?.value && (!version || value?.version===version)) {
                         limit--;
-                        result.values.push(value);
+                        result.value.push(value);
                     }
                     result.done = done;
                     if(!result.done) result.offset++;
@@ -234,20 +248,21 @@ const serve = async ({port=3000,serverOptions,dbroute="/data/:environment/:name"
                 return result;
             })
             .get(dbroute + '/:key', async (request,reply) => {
-                const { environment, name, key } = request.params;
+                const {environment, name, key} = request.params;
                 let env = environments[environment];
-                if(!env) {
-                    if(!dynamicEnvironments) throw new Error("Environment not found")
+                if (!env) {
+                    if (!dynamicEnvironmentOptions) throw new Error("Environment not found")
                     env = environments[environment] = {
-                        databases:{},
-                        ...dynamicEnvironments
+                        databases: {},
+                        options:dynamicEnvironmentOptions
                     }
                 }
-                if(env.databases[name]===undefined && !dynamicDatabases) throw new Error("Database not found");
-                const {databases,...options} = env.databases[name] || env.databases[name]===null ? {...env} : dynamicDatabases || {};
-                env.databases[name] = {...options};
-                const envdb = open(environment,{create:true,...env}),
-                    db = envdb.openDB({name,...options});
+                if (env.databases[name] === undefined) {
+                    if (!dynamicDatabaseOptions) throw new Error("Database not found");
+                    env.databases[name] = {options:{...(env.inheritOptions ? env.options : dynamicEnvironmentOptions),...dynamicDatabaseOptions}};
+                }
+                const envdb = open(environment,env.options),
+                    db = envdb.openDB({name,...env.databases[name].options});
                 let {version,entry} = request.query;
                 version = coerce(version,"number");
                 entry = coerce(entry,"boolean");
@@ -260,18 +275,19 @@ const serve = async ({port=3000,serverOptions,dbroute="/data/:environment/:name"
             .put(dbroute + '/:key', async (request,reply) => {
                 const { environment,name, key } = request.params;
                 let env = environments[environment];
-                if(!env) {
-                    if(!dynamicEnvironments) throw new Error("Environment not found")
+                if (!env) {
+                    if (!dynamicEnvironmentOptions) throw new Error("Environment not found")
                     env = environments[environment] = {
-                        databases:{},
-                        ...dynamicEnvironments
+                        databases: {},
+                        options:dynamicEnvironmentOptions
                     }
                 }
-                if(env.databases[name]===undefined && !dynamicDatabases) throw new Error("Database not found");
-                const {databases,...options} = env.databases[name] || env.databases[name]===null ? {...env} : dynamicDatabases || {};
-                env.databases[name] = {...options};
-                const envdb = open(environment,{create:true,...env}),
-                    db = envdb.openDB({name,...options});
+                if (env.databases[name] === undefined) {
+                    if (!dynamicDatabaseOptions) throw new Error("Database not found");
+                    env.databases[name] = {options:{...(env.inheritOptions ? env.options : dynamicEnvironmentOptions),...dynamicDatabaseOptions}};
+                }
+                const envdb = open(environment,env.options),
+                    db = envdb.openDB({name,...env.databases[name].options});
                 let {version,ifVersion} = request.query;
                 version = coerce(version,"number");
                 ifVersion = coerce(ifVersion,"number");
@@ -290,12 +306,11 @@ const serve = async ({port=3000,serverOptions,dbroute="/data/:environment/:name"
                 reply.type("application/json");
                 return result + "";
             });
-        app.listen({port},(err,address) => {
+        app.listen({...serverOptions, port},(err,address) => {
             if(err) {
                 app.log.error(err);
                 process.exit(1);
             }
-            console.log(`Server listening on port ${address}`);
         })
         const io = new Server(app.server);
         // use the cluster adapter
