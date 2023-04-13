@@ -19,20 +19,6 @@ async function main() {
         db = test.openDB("test",{create:true,useVersions:true});
     db.clearSync();
     await db.close();
-    await serve({
-        serverOptions,
-        appOptions:{logger: true},
-        databaseOptions:{
-            environments:{
-                test:{
-                    inheritOptions: true,
-                    options:{useVersions:true},
-                    databases:{
-                        test: null
-                    }
-                }
-            }
-        }
-    });
+    await serve("./options.js");
 }
 main();

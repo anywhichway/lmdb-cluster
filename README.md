@@ -1,5 +1,5 @@
 # lmdb-cluster
-A clustered version of lmdb that supports a REST API.
+A clustered version of lmdb that supports a REST API with sockets planned.
 
 LMDB functionality for put, get, remove, and range queries with versions is supported. LMDB start-up options for encryption, compression, etc. are also supported.
 
@@ -33,11 +33,11 @@ serve({environments:{test:{useVersions:true,databases:{test:null}}}}).then((serv
 
 General REST API approach is to use the HTTP verbs to indicate the database function to be called:
 
-DELETE - removeXXX
-GET - getXXX
-PATCH - no underlying LMDB operation, but the capability is provided by `lmdb-patch`. (not yet implemented)
-PUT - putXXX
-POST - transaction and other activities that are not simple database operations. (not yet implemented)
+- DELETE - removeXXX
+- GET - getXXX
+- PATCH - no underlying LMDB operation, but the capability is provided by `lmdb-patch`. (not yet implemented)
+- PUT - putXXX
+- POST - transaction and other activities that are not simple database operations. (not yet implemented)
 
 The last portion of a URL path is typically a `URLEncoded` string that is the key for the database operation, although when the key is missing, a range get or query is presumed.
 
@@ -60,9 +60,11 @@ If options is an object, it has the surface:
 }
 ```
 
+If the `options` argument to `serve` is a string, it is the path to a JavaScript file that exports the options in the above form. The path is resolved relative to the current working directory, i.e. the directory from which the file containing the call to `serve` is saved. See the 'test' directory for an example.
+
 `serverOptions` are the same options that would be passed to NodeJS [server.listen](https://nodejs.org/api/http.html#http_server_listen).
 
-`clusterOptions` are the same options that would be use for NodeJS [clustering](https://nodejs.org/api/cluster.html), this includes `maxCPUs` and `on` event handlers, e.g. 
+`clusterOptions` are the same options that would be used for NodeJS [clustering](https://nodejs.org/api/cluster.html), this includes `maxCPUs` and `on` event handlers, e.g. 
 
 ```javascript
 {
@@ -119,31 +121,31 @@ You can change the `dbroute` if you wish to use a different API endpoint. For ex
 }
 ```
 
-`options` are once again, the same as those for LMDB. If `inhertinOptions` is true, the options for the environment are used as defaults for the database.
+`options` are, once again, the same as those for LMDB. If `inheritOptions` is true, the options for the environment are used as defaults for the database.
 
 If `dynamicEnvironmentOptions` is present and an attempt is made to open an environment not configured in the `environments` argument, then the options are used to create an environment database of the name requested. Otherwise, an error is thrown. Be careful with this, as it can be a DOS security risk.
 
 `dynamicDatabaseOptions` are used in the same way as `dynamicEnvironmentOptions` for child databases. The `dynamicEnvironmentOptions` are automatically used if neither the parent environment is configured to have it's options inherited or `dynamicDatabaseOptions` is present.  Be careful with this, as it can be a DOS security risk.
 
-If the `options` argument to `serve` is a string, it is the path to a JavaScript file that exports the options. (Not yet implemented)
-
 ## DELETE /data/:environment/:name/:key?ifVersion=:ifversion
 
-Deletes a value from the database `:name`. Optionally, only deletes if the version of the value is `:ifversion`.
+Deletes a value from the database `:name` with `:key`. Optionally, only deletes if the version of the value is `:ifversion`.
 
 Returns `true` or `false` depending on whether the value was deleted, i.e. if the value did not exist or the version did not match `false` is returned.
 
 ## GET /data/:environment/:name/:key?ifVersion=:ifversion
 
-Gets a value from the database `:name` at the `:key`. Optionally, only gets if the version of the value is `:ifversion`.
+Gets a value from the database `:name` with `:key`. Optionally, only gets if the version of the value is `:ifversion`.
 
 Returns the value or `null` if the value does not exist or the version does not match.
 
-## GET /data/:environment/:name?start=:start&end=:end&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions
+## GET /data/:environment/:name/?start=:start&end=:end&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions
 
-Gets a range of values from the database `:name`. 
+Gets a range of values from the database `:name`. ***Note***: Trailing slash is REQUIRED.
 
-The range is from `:start` to `:end`. The `:start` and `:end` are `URLEncoded` strings. The `:start` and `end` follow the same form as LMDB [range options](https://github.com/kriszyp/lmdb-js#rangeoptions).
+All query string arguments are optional. However, failing  to provide a `:start` or `:end` will result in a full database scan.
+
+The range is from `:start` to `:end`. The `:start` and `:end` are JSON.stringified `URLEncoded` strings. The `:start` and `end` follow the same form as LMDB [range options](https://github.com/kriszyp/lmdb-js#rangeoptions).
 
 The `:limit` is the maximum number of values to return.
 
@@ -153,7 +155,7 @@ The `:reverse` is a boolean that indicates whether the range should be returned 
 
 The `:versions` is a boolean that indicates whether the version of each value should be returned.
 
-Returns a result object with the surface that us similar to the standard Iterator result object:
+Returns a result object with the surface that is similar to the standard [iterable](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols) result object:
 
 ```json
 {
@@ -200,7 +202,9 @@ v2.0.0 - Socket API
 
 # Release History (Reverse Chronological Order)
 
-2003-04-13 v0.0.3 Refined arguments to `serve`. Enhanced documentation.
+2023-04-14 v0.0.4 Enhanced documentation. Implemented loading options from disk.
+
+2023-04-13 v0.0.3 Refined arguments to `serve`. Enhanced documentation.
 
 2023-04-12 v0.0.2 Added support for HTTPS.
 

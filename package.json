@@ -1,7 +1,7 @@
 {
   "name": "lmdb-cluster",
-  "version": "0.0.3",
-  "description": "A clustered version of lmdb that supports a REST API, a unified POST API, and sockets.",
+  "version": "0.0.4",
+  "description": "A clustered version of lmdb that supports a REST API with sockets planned",
   "main": "index.js",
   "scripts": {
     "test": "jest --detectOpenHandles --coverage"

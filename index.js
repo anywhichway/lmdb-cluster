@@ -1,6 +1,8 @@
 const cluster = require("cluster");
 const http = require("http");
 const https = require("https");
+const process = require("process");
+const path = require("path");
 const fastify = require('fastify');
 const { Server } = require("socket.io");
 const numCPUs = require("os").cpus().length;
@@ -95,7 +97,9 @@ const serializer = (value) => {
     return JSON.stringify(value,serializeSpecial);
 }
 
-const serve = async ({serverOptions={},clusterOptions={},appOptions={},databaseOptions={}}) => {
+const serve = async (arg={}) => {
+    console.log(path.normalize(path.join(process.cwd(),arg)));
+    const {serverOptions={},clusterOptions={},appOptions={},databaseOptions={}} = typeof(arg)==="string" ? require(path.normalize(path.join(process.cwd(),arg))) : arg;
     const {maxCPUs} = clusterOptions,
         {dbroute="/data/:environment/:name",environmentOptions={},environments= {},dynamicEnvironmentOptions,dynamicDatabaseOptions={}} = databaseOptions,
         port = serverOptions?.port || (serverOptions?.https ? 443 : 3000);
