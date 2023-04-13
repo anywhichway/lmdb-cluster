@@ -5,6 +5,12 @@ LMDB functionality for put, get, remove, and range queries with versions is supp
 
 This is ALPHA software. Full unit tests not yet in place. API may change. Not functionally complete.
 
+See also:
+
+[LMDB Query](https://github.com/anywhichway/lmdb-query) - A higher level query mechanism for LMDB supporting functional, declarative and RegExp filters without the overhead of an entire database wrapper.
+
+[LMDB IndexedDB](https://github.com/anywhichway/lmdb-indexeddb) - An IndexedDB wrapper for LMDB that supports the full IndexedDB API.
+
 # Installation
 
 ```
@@ -201,6 +207,8 @@ The Socket.io library and some of the other libraries used by this library are m
 v2.0.0 - Socket API
 
 # Release History (Reverse Chronological Order)
+
+2023-04-14 v0.0.5 Enhanced documentation.
 
 2023-04-14 v0.0.4 Enhanced documentation. Implemented loading options from disk.
 

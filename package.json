@@ -1,6 +1,6 @@
 {
   "name": "lmdb-cluster",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "A clustered version of lmdb that supports a REST API with sockets planned",
   "main": "index.js",
   "scripts": {
