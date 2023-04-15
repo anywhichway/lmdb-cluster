@@ -1,6 +1,6 @@
 {
   "name": "lmdb-cluster",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "A clustered version of lmdb that supports a REST API with sockets planned",
   "main": "index.js",
   "scripts": {
@@ -29,6 +29,8 @@
     "fastify": "^4.15.0",
     "fastify-socket.io": "^4.0.0",
     "lmdb": "^2.7.11",
+    "lmdb-patch": "^1.0.0",
+    "lmdb-query": "^1.0.2",
     "socket.io": "^4.6.1"
   },
   "devDependencies": {

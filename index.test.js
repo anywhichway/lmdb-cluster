@@ -1,4 +1,5 @@
 const deserializeSpecial = (key,value) => {
+    if(key && value==="@undefined") return;
     if(value==="@Infinity") return Infinity;
     if(value==="@-Infinity") return -Infinity;
     if(value==="@NaN") return NaN;
@@ -16,13 +17,14 @@ const deserializeSpecial = (key,value) => {
     }
     if(value && type==="object") {
         Object.entries(value).forEach(([key,data]) => {
-            value[key] = deserializeSpecial(data);
+            value[key] = deserializeSpecial(key,data);
         });
     }
     return value;
 }
 
-const serializeSpecial = (key,value) => {
+const serializeSpecial = (keepUndefined) => (key,value) => {
+    if(keepUndefined && key && value===undefined) return "@undefined";
     if(value===Infinity) return "@Infinity";
     if(value===-Infinity) return "@-Infinity";
     const type = typeof(value);
@@ -34,11 +36,14 @@ const serializeSpecial = (key,value) => {
         if(value instanceof RegExp) return "@RegExp("+value.toString()+")";
         if(value instanceof Symbol) return "@Symbol("+value.toString()+")";
         Object.entries(value).forEach(([key,data]) => {
-            value[key] = serializeSpecial(key,data);
+            if(data===undefined && !keepUndefined) return;
+            value[key] = serializeSpecial(keepUndefined)(key,data);
         });
     }
     return value;
 }
+
+
 
 const host = "http://localhost:3000"; // https://localhost http://localhost:3000
 
@@ -62,7 +67,7 @@ test("get number", async () => {
 test("put Infinity", async () => {
     const response = await fetch(`${host}/data/test/test/hello?version=1`,{
         method:"PUT",
-        body:serializeSpecial(null,Infinity),
+        body:serializeSpecial()(null,Infinity),
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
@@ -80,7 +85,7 @@ test("get Infinity", async () => {
 test("put -Infinity", async () => {
     const response = await fetch(`${host}/data/test/test/hello?version=1`,{
         method:"PUT",
-        body:serializeSpecial(null,-Infinity),
+        body:serializeSpecial()(null,-Infinity),
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
@@ -98,7 +103,7 @@ test("get -Infinity", async () => {
 test("put NaN", async () => {
     const response = await fetch(`${host}/data/test/test/hello?version=1`,{
         method:"PUT",
-        body:serializeSpecial(null,NaN),
+        body:serializeSpecial()(null,NaN),
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
@@ -117,7 +122,7 @@ const now = new Date();
 test("put Date", async () => {
     const response = await fetch(`${host}/data/test/test/hello?version=1`,{
         method:"PUT",
-        body:serializeSpecial(null,now),
+        body:serializeSpecial()(null,now),
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
@@ -256,4 +261,35 @@ test("delete", async () => {
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const json = await response.json();
     expect(json).toEqual(true);
+});
+test("patch",async ()=> {
+    const url = `${host}/data/test/test/object`;
+    let response = await fetch(url,{
+        method:"PUT",
+        body:JSON.stringify({name:"joe",address:{city:"Seattle",state:"WA",zip:"98101"}},serializeSpecial())
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    let json = await response.json();
+    expect(json).toEqual(true);
+    response = await fetch(url,{
+        method:"PATCH",
+        body:JSON.stringify({name:"joe",address:{city:"Tacoma",state:"WA",zip:undefined}},serializeSpecial(true))
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    json = await response.json();
+    expect(json).toEqual(true);
+    response = await fetch(url);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    const text = await response.text();
+    json = JSON.parse(text);
+    expect(json.name).toEqual("joe");
+    expect(json.address.city).toEqual("Tacoma");
+    expect(json.address.state).toEqual("WA");
+    expect(json.address.zip).toEqual(undefined);
+    await fetch(url,{
+        method:"DELETE"
+    });
 })

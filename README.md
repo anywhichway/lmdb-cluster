@@ -1,7 +1,11 @@
 # lmdb-cluster
 A clustered version of lmdb that supports a REST API with sockets planned.
 
-LMDB functionality for put, get, remove, and range queries with versions is supported. LMDB start-up options for encryption, compression, etc. are also supported.
+LMDB functionality for put, get, remove, and range queries with versions is supported. 
+
+Also supported are patch operations for partial object updates via [lmdb-patch](https://github.com/anywhichway/lmdb-patch), and a query mechanism that supports functional, declarative and RegExp filters via [lmdb-query](https://github.com/anywhichway/lmdb-query).
+
+LMDB start-up options for encryption, compression, etc. are also supported.
 
 This is ALPHA software. Full unit tests not yet in place. API may change. Not functionally complete.
 
@@ -100,16 +104,15 @@ exit(worker, code, signal) {
 ```json
 {
   dbroute="/data/:environment/:name",
-  environmentOptions = {},
+  defaultEnvironment = {}, // was environmentOptions = {},
+  dynamicEnvironment, // wasdynamicEnvironmentOptions,
+  dynamicDatabase={} // was dynamicDatabaseOptions=dynamicEnvironmentOptions,
   environments = {},
-  dynamicEnvironmentOptions,
-  dynamicDatabaseOptions=dynamicEnvironmentOptions
 }
 ```
-
 You can change the `dbroute` if you wish to use a different API endpoint. For example, `/dbs/:environment/:name` would be a valid value. You must include `:environment` and `:name` in the route.
 
-`environmentOptions` are the same options that would be passed to the LMDB [open](https://github.com/kriszyp/lmdb-js#db-options) when creating a top level "environment" database. They are used as default values for each environment.
+`defaultEnvironment`, `dynamicEnvironment` and `dynamicDatabase` are all optional and have the surface `{options:object,functions:object}`. The options are the same that would be passed to the LMDB [open](https://github.com/kriszyp/lmdb-js#db-options) or [openDB](https://github.com/kriszyp/lmdb-js#dbopendbdatabase-stringnamestring). If `defaultEnvironment` is present, then it is used as the default environment for all databases. If `dynamicEnvironment` is present, then it is used as the default for any environment not configured in the `environments` argument. It can also have `inheritDefaults` as a boolean property. If `dynamicDatabase` is present, then it is used for any database not configured in the `environments` argument. It can also have `inheritEnvironment` as a boolean property.
 
 `environments` is an object that has the surface:
 
@@ -117,19 +120,20 @@ You can change the `dbroute` if you wish to use a different API endpoint. For ex
 {
   <environmentName>: {
     options: {},
-    inheritOptions: false,
+    functions: {},
+    inheritDefaults: false, // merges defaultEnvironment.option and defaultEnvironment.functions with environment options and functions
     databases: {
       <databaseName>: {
-        options: null
+        inheritEnvironment: false, // merges environment.options and environment.functions with database options and functions
+        options: null,
+        functions: null,
       }
     }
   }
 }
 ```
 
-`options` are, once again, the same as those for LMDB. If `inheritOptions` is true, the options for the environment are used as defaults for the database.
-
-If `dynamicEnvironmentOptions` is present and an attempt is made to open an environment not configured in the `environments` argument, then the options are used to create an environment database of the name requested. Otherwise, an error is thrown. Be careful with this, as it can be a DOS security risk.
+If `dynamicEnvironment` is present and an attempt is made to open an environment not configured in the `environments` argument, then the `dynamicEnvironment.options` are used to create an environment database of the name requested. Otherwise, an error is thrown. Be careful with this, as it can be a DOS security risk.
 
 `dynamicDatabaseOptions` are used in the same way as `dynamicEnvironmentOptions` for child databases. The `dynamicEnvironmentOptions` are automatically used if neither the parent environment is configured to have it's options inherited or `dynamicDatabaseOptions` is present.  Be careful with this, as it can be a DOS security risk.
 
@@ -145,13 +149,15 @@ Gets a value from the database `:name` with `:key`. Optionally, only gets if the
 
 Returns the value or `null` if the value does not exist or the version does not match.
 
-## GET /data/:environment/:name/?start=:start&end=:end&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions
+## GET /data/:environment/:name/?start=:start&end=:end&keyMatch=:keyMatch&valueMatch=:valueMatch&select=:select&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions
 
 Gets a range of values from the database `:name`. ***Note***: Trailing slash is REQUIRED.
 
 All query string arguments are optional. However, failing  to provide a `:start` or `:end` will result in a full database scan.
 
-The range is from `:start` to `:end`. The `:start` and `:end` are JSON.stringified `URLEncoded` strings. The `:start` and `end` follow the same form as LMDB [range options](https://github.com/kriszyp/lmdb-js#rangeoptions).
+The range can be from `:start` to `:end`. The `:start` and `:end` are JSON.stringified `URLEncoded` strings. The `:start` and `end` follow the same form as LMDB [range options](https://github.com/kriszyp/lmdb-js#rangeoptions).
+
+Alternatively (NOT YET RELEASED), `:keyMatch`, `:valueMatch` and `:select` can be used to specify a range for `getRangeWhere` from [lmdb-query](https://github.com/anywhichway/lmdb-query). Like `:start` and `:end`, these are JSON.stringified `URLEncoded` strings.
 
 The `:limit` is the maximum number of values to return.
 
@@ -185,7 +191,9 @@ If `offset` is present, then the range is not complete. Request the exact same U
 
 ## PATCH /data/:environment/:name/:key?version=:version&ifVersion=:ifversion
 
-Not yet implemented
+Patches a value (the contents of the request body) into the database `:name` at the `:key`, optionally with the `version` provided. If `ifVersion` is provided, only patches if the version of the old value is `:ifversion`.
+
+If the existing value is a primitive type or the new value is a primitive type, the existing value is replaced with the patch. Otherwise, the patch is merged into the object. By serializing `undefined` to "@undefined" as the value for properties you wish to delete, `PATCH` can be used to delete properties (including nested ones).
 
 ## PUT /data/:environment/:name/:key?version=:version&ifVersion=:ifversion
 
@@ -207,6 +215,8 @@ The Socket.io library and some of the other libraries used by this library are m
 v2.0.0 - Socket API
 
 # Release History (Reverse Chronological Order)
+
+2023-04-15 v0.1.0 Enhanced documentation. Added support for `PATCH`. BREAKING CHANGE, the signature of the `databaseOptions` argument to serve` has changed.
 
 2023-04-14 v0.0.5 Enhanced documentation.
 
