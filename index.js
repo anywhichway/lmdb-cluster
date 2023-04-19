@@ -14,7 +14,7 @@ const coerce = (value,type,...types) => {
     const t = typeof(value);
     if(type==t || value===undefined) return value;
     if(t==="string") {
-        if(type==="symobol") return Symbol(value);
+        if(type==="symbol") return Symbol(value);
         try { // coerce to primary type if value is a string
             const result = JSON.parse(value,deserializeSpecial),
                 rtype = typeof(result);
@@ -188,6 +188,46 @@ const serve = async (arg={}) => {
             delete serverOptions.https;
         }
         app.get('/',  (request) => 'LMDB Cluster Server')
+            .route({
+                method:"COPY",
+                url:dbroute + '/:key',
+                handler: async (request,reply) => {
+                    const {environment, name, key} = request.params;
+                    let env = environments[environment];
+                    if (!env) {
+                        if (!dynamicEnvironment) throw new Error("Environment not found")
+                        env = environments[environment] = {
+                            databases: {},
+                            options: {...(dynamicEnvironment.inheritDefaults ? defaultEnvironment.options || {} : {}), ...dynamicEnvironment?.options || {}},
+                            functions: {...(dynamicEnvironment.inheritDefaults ? defaultEnvironment.functions || {} : {}), ...dynamicEnvironment?.options || {}}
+
+                        }
+                    }
+                    if (env.databases[name] === undefined) {
+                        if (!dynamicDatabase) throw new Error("Database not found");
+                        env.databases[name] = {
+                            options: {...(dynamicDatabase.inheritEnvironment ? env.options : {}), ...dynamicDatabase?.options || {}},
+                            functions: {...(dynamicDatabase.inheritEnvironment ? env.functions : {}), ...dynamicDatabase?.functions || {}}
+                        };
+                    }
+                    const envdb = open(environment, env.options),
+                        db = envdb.openDB({name, ...env.databases[name].options});
+                    Object.entries(env.databases[name].functions).forEach(([fname, f]) => {
+                        db[fname] = f;
+                    });
+                    let {version, ifVersion} = request.query;
+                    version = coerce(version, "number");
+                    ifVersion = coerce(ifVersion, "number");
+                    const entry = db.getEntry(key, {versions: true});
+                    let result = false;
+                    if (entry.version == ifVersion) {
+                        result = await db.put(request.query.key, entry.value, version);
+                    }
+                    await db.close();
+                    reply.type("application/json");
+                    return result + "";
+                }
+            })
             .delete(dbroute + '/:key', async (request,reply) => {
                 const { environment,name,key } =  request.params;
                 let env = environments[environment];
@@ -358,6 +398,69 @@ const serve = async (arg={}) => {
                 await db.close();
                 reply.type("application/json");
                 return result + "";
+            })
+            /*
+            if (entry.version == ifVersion) {
+                        await db.transaction(async () => {
+                            result = await db.put(request.query.key, entry.value, version);
+                            if(!result) {
+                                return ABORT;
+                            }
+                            result = await db.remove(key);
+                            if(!result) {
+                                return ABORT;
+                            }
+                        })
+                    }
+             */
+            .route({
+                method:"MOVE",
+                url:dbroute + '/:key',
+                handler: async (request,reply) => {
+                    const {environment, name, key} = request.params;
+                    let env = environments[environment];
+                    if (!env) {
+                        if (!dynamicEnvironment) throw new Error("Environment not found")
+                        env = environments[environment] = {
+                            databases: {},
+                            options: {...(dynamicEnvironment.inheritDefaults ? defaultEnvironment.options || {} : {}), ...dynamicEnvironment?.options || {}},
+                            functions: {...(dynamicEnvironment.inheritDefaults ? defaultEnvironment.functions || {} : {}), ...dynamicEnvironment?.options || {}}
+
+                        }
+                    }
+                    if (env.databases[name] === undefined) {
+                        if (!dynamicDatabase) throw new Error("Database not found");
+                        env.databases[name] = {
+                            options: {...(dynamicDatabase.inheritEnvironment ? env.options : {}), ...dynamicDatabase?.options || {}},
+                            functions: {...(dynamicDatabase.inheritEnvironment ? env.functions : {}), ...dynamicDatabase?.functions || {}}
+                        };
+                    }
+                    const envdb = open(environment, env.options),
+                        db = envdb.openDB({name, ...env.databases[name].options});
+                    Object.entries(env.databases[name].functions).forEach(([fname, f]) => {
+                        db[fname] = f;
+                    });
+                    let {version, ifVersion} = request.query;
+                    version = coerce(version, "number");
+                    ifVersion = coerce(ifVersion, "number");
+                    const entry = db.getEntry(key, {versions: true});
+                    let result = false;
+                    if (entry.version == ifVersion) {
+                        await db.transaction(async () => {
+                            result = await db.put(request.query.key, entry.value, version);
+                            if(!result) {
+                                throw new Error(`Failed to create copy ${request.query.key} from ${key} when moving.`)
+                            }
+                            result = await db.remove(key,ifVersion);
+                            if(!result) {
+                                throw new Error(`Failed to delete ${key} when moving to ${request.query.key}.`)
+                            }
+                        })
+                    }
+                    await db.close();
+                    reply.type("application/json");
+                    return result + "";
+                }
             })
             .put(dbroute + '/:key', async (request,reply) => {
                 const { environment,name, key } = request.params;

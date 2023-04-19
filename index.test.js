@@ -185,9 +185,63 @@ test("get entry and version fail", async () => {
     const json = await response.json();
     expect(json).toEqual(null);
 })
+test("copy",async () => {
+    const url = `${host}/data/test/test/hello?version=2&ifVersion=1&key=hello2`;
+    let response = await fetch(url,{
+        method:"COPY"
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    let json = await response.json();
+    expect(json).toEqual(true);
+    response = await fetch(`${host}/data/test/test/hello2?version=2`,{
+        method:"GET"
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    json = await response.json();
+    expect(json).toEqual("world");
+})
+test("move",async () => {
+    const url = `${host}/data/test/test/hello2?ifVersion=2&key=hello3`;
+    let response = await fetch(url,{
+        method:"MOVE"
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    let json = await response.json();
+    expect(json).toEqual(true);
+    response = await fetch(`${host}/data/test/test/hello3`,{
+        method:"GET"
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    json = await response.json();
+    expect(json).toEqual("world");
+})
+test("delete fail by version", async () => {
+    const url = `${host}/data/test/test/hello?ifVersion=2`;
+    const response = await fetch(url,{
+        method:"DELETE"
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    const json = await response.json();
+    expect(json).toEqual(false);
+});
+test("delete", async () => {
+    const url = `${host}/data/test/test/hello?ifVersion=1`;
+    const response = await fetch(url,{
+        method:"DELETE"
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    const json = await response.json();
+    expect(json).toEqual(true);
+});
 describe("get range", () => {
     beforeAll(async () => {
-        for(let i=1;i<10;i++){
+        for(let i=1;i<=10;i++){
             await fetch(`${host}/data/test/test/hello${i}?version=2`,{
                 method:"PUT",
                 body:"world"+i,
@@ -239,7 +293,7 @@ describe("get range", () => {
         let json = await response.json();
         expect(json.done).toEqual(true);
         expect(json.value?.constructor.name).toEqual("Array");
-        expect(json.value?.length).toEqual(9)
+        expect(json.value?.length).toEqual(10)
     })
     test("getRangeWhere",async () => {
         let response = await fetch(`${host}/data/test/test/hello`,{
@@ -279,26 +333,6 @@ describe("get range", () => {
         expect(json.value?.constructor.name).toEqual("Array");
         expect(json.value?.length).toEqual(0);
     })
-});
-test("delete fail by version", async () => {
-    const url = `${host}/data/test/test/hello?ifVersion=2`;
-    const response = await fetch(url,{
-        method:"DELETE"
-    });
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
-    const json = await response.json();
-    expect(json).toEqual(false);
-});
-test("delete", async () => {
-    const url = `${host}/data/test/test/hello?ifversion=1`;
-    const response = await fetch(url,{
-        method:"DELETE"
-    });
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
-    const json = await response.json();
-    expect(json).toEqual(true);
 });
 test("patch",async ()=> {
     const url = `${host}/data/test/test/object`;

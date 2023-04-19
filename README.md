@@ -3,7 +3,12 @@ A clustered version of lmdb that supports a REST API with sockets planned.
 
 LMDB functionality for put, get, remove, and range queries with versions is supported. 
 
-Also supported are patch operations for partial object updates via [lmdb-patch](https://github.com/anywhichway/lmdb-patch), and a query mechanism that supports functional, declarative and RegExp filters via [lmdb-query](https://github.com/anywhichway/lmdb-query).
+Also supported are:
+
+1. patch operations for partial object updates via [lmdb-patch](https://github.com/anywhichway/lmdb-patch),
+2. copy operations using the HTTP verb `COPY`
+3. move operations using the HTTP verb `MOVE`
+4. a query mechanism that supports functional, declarative and RegExp filters via [lmdb-query](https://github.com/anywhichway/lmdb-query).
 
 LMDB start-up options for encryption, compression, etc. are also supported.
 
@@ -43,9 +48,11 @@ serve({environments:{test:{useVersions:true,databases:{test:null}}}}).then((serv
 
 General REST API approach is to use the HTTP verbs to indicate the database function to be called:
 
+- COPY - no underlying LMDB operation
 - DELETE - removeXXX
 - GET - getXXX
-- PATCH - no underlying LMDB operation, but the capability is provided by `lmdb-patch`. (not yet implemented)
+- MOVE - no underlying LMDB operation
+- PATCH - no underlying LMDB operation, but the capability is provided by `lmdb-patch`.
 - PUT - putXXX
 - POST - transaction and other activities that are not simple database operations. (not yet implemented)
 
@@ -137,6 +144,10 @@ If `dynamicEnvironment` is present and an attempt is made to open an environment
 
 `dynamicDatabaseOptions` are used in the same way as `dynamicEnvironmentOptions` for child databases. The `dynamicEnvironmentOptions` are automatically used if neither the parent environment is configured to have it's options inherited or `dynamicDatabaseOptions` is present.  Be careful with this, as it can be a DOS security risk.
 
+## COPY /data/:environment/:name/:key?key=:newKey,&version=:version&ifVersion=:ifversion
+
+Copies the value at `:key` to `:newKey`. The `newKey` will be in the same `:environment` and database. If `:version` is provided, it will be used for the copy. Copying will only occur when the version of the original matches `:ifversion`, when `:ifversion` is provided. Returns `true` if successful, otherwise `false`.
+
 ## DELETE /data/:environment/:name/:key?ifVersion=:ifversion
 
 Deletes a value from the database `:name` with `:key`. Optionally, only deletes if the version of the value is `:ifversion`.
@@ -189,6 +200,10 @@ The items in the value array have the surface:
 
 If `offset` is present, then the range is not complete. Request the exact same URL as before, but with the `offset` set to the value of the `offset` property of the result object. This will return the next page of results. When a JavaScript client library is written, the object will even have a `next()` method.
 
+## MOVE /data/:environment/:name/:key?key=:newKey,&version=:version&ifVersion=:ifversion
+
+Moves the value at `:key` to `:newKey`. The `newKey` will be in the same `:environment` and database. If `:version` is provided, it will be used for the moved version. Moving will only occur when the version of the original matches `:ifversion`, when `:ifversion` is provided. Returns `true` if successful, otherwise `false`. The actual move involves making a copy and deleting the original inside a transaction.
+
 ## PATCH /data/:environment/:name/:key?version=:version&ifVersion=:ifversion
 
 Patches a value (the contents of the request body) into the database `:name` at the `:key`, optionally with the `version` provided. If `ifVersion` is provided, only patches if the version of the old value is `:ifversion`.
@@ -215,6 +230,8 @@ The Socket.io library and some of the other libraries used by this library are m
 v2.0.0 - Socket API
 
 # Release History (Reverse Chronological Order)
+
+2023-04-19 v0.3.0 Added support for `COPY` and `MOVE`.
 
 2023-04-18 v0.2.0 Enhanced documentation. Added support for `keyMatch`, `valueMatch`, and `select` for `GET` methods through the use of `lmdb-query`.
 
