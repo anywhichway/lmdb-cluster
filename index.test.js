@@ -231,7 +231,7 @@ describe("get range", () => {
         expect(json.value?.constructor.name).toEqual("Array");
         expect(json.value?.length).toEqual(5);
     })
-    test("get version 1s", async () => {
+    test("get version 2s", async () => {
         const url = `${host}/data/test/test/?version=2`;
         let response = await fetch(url);
         expect(response.status).toBe(200);
@@ -240,6 +240,44 @@ describe("get range", () => {
         expect(json.done).toEqual(true);
         expect(json.value?.constructor.name).toEqual("Array");
         expect(json.value?.length).toEqual(9)
+    })
+    test("getRangeWhere",async () => {
+        let response = await fetch(`${host}/data/test/test/hello`,{
+            method:"PUT",
+            body: JSON.stringify({message:"world"})
+        });
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+        let json = await response.json();
+        expect(json).toEqual(true);
+        const url = `${host}/data/test/test/?keyMatch=["hello"]&valueMatch={"message":"world"}&versions=true`;
+        response = await fetch(url);
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+        json = await response.json();
+        expect(json.done).toEqual(true);
+        expect(json.value?.constructor.name).toEqual("Array");
+        expect(json.value?.length).toEqual(1);
+        const value = json.value[0].value;
+        expect(value.message).toEqual("world");
+    })
+    test("getRangeWhere fail",async () => {
+        let response = await fetch(`${host}/data/test/test/hello`,{
+            method:"PUT",
+            body: JSON.stringify({message:"world"})
+        });
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+        let json = await response.json();
+        expect(json).toEqual(true);
+        const url = `${host}/data/test/test/?keyMatch=["hello"]&valueMatch={"message":"moon"}&versions=true`;
+        response = await fetch(url);
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+        json = await response.json();
+        expect(json.done).toEqual(true);
+        expect(json.value?.constructor.name).toEqual("Array");
+        expect(json.value?.length).toEqual(0);
     })
 });
 test("delete fail by version", async () => {

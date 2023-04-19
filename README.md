@@ -157,7 +157,7 @@ All query string arguments are optional. However, failing  to provide a `:start`
 
 The range can be from `:start` to `:end`. The `:start` and `:end` are JSON.stringified `URLEncoded` strings. The `:start` and `end` follow the same form as LMDB [range options](https://github.com/kriszyp/lmdb-js#rangeoptions).
 
-Alternatively (NOT YET RELEASED), `:keyMatch`, `:valueMatch` and `:select` can be used to specify a range for `getRangeWhere` from [lmdb-query](https://github.com/anywhichway/lmdb-query). Like `:start` and `:end`, these are JSON.stringified `URLEncoded` strings.
+Alternatively, `:keyMatch`, `:valueMatch` and `:select` can be used to specify a range for `getRangeWhere` from [lmdb-query](https://github.com/anywhichway/lmdb-query). Like `:start` and `:end`, these are JSON.stringified `URLEncoded` strings.
 
 The `:limit` is the maximum number of values to return.
 
@@ -215,6 +215,8 @@ The Socket.io library and some of the other libraries used by this library are m
 v2.0.0 - Socket API
 
 # Release History (Reverse Chronological Order)
+
+2023-04-18 v0.2.0 Enhanced documentation. Added support for `keyMatch`, `valueMatch`, and `select` for `GET` methods through the use of `lmdb-query`.
 
 2023-04-15 v0.1.0 Enhanced documentation. Added support for `PATCH`. BREAKING CHANGE, the signature of the `databaseOptions` argument to serve` has changed.
 

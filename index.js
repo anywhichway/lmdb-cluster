@@ -248,7 +248,7 @@ const serve = async (arg={}) => {
                 Object.entries(env.databases[name].functions).forEach(([fname,f]) => {
                     db[fname] = f;
                 })
-                let {versions,version,start,end,limit,offset,keyMatch,valueMatch} = request.query;
+                let {versions,version,start,end,limit,offset,keyMatch,valueMatch,select} = request.query;
                 versions = coerce(versions,"boolean");
                 version = coerce(version,"number");
                 limit = coerce(limit,"number");
@@ -257,7 +257,8 @@ const serve = async (arg={}) => {
                 end = coerce(end,"object","string");
                 keyMatch = coerce(keyMatch,"object","string");
                 valueMatch = coerce(valueMatch,"object","string");
-                const range = db.getRange({start,end,offset,versions:version ? true : versions===true});
+                select = coerce(select,"object","string");
+                const range = keyMatch ? db.getRangeWhere(keyMatch,valueMatch,select,{offset,versions:version ? true : versions===true}) : db.getRange({start,end,offset,versions:version ? true : versions===true});
                 const result = {
                     done: false,
                     value: [],
