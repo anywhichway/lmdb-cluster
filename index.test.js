@@ -186,7 +186,7 @@ test("get entry and version fail", async () => {
     expect(json).toEqual(null);
 })
 test("copy",async () => {
-    const url = `${host}/data/test/test/hello?version=2&ifVersion=1&key=hello2`;
+    const url = `${host}/data/test/test/hello?key=hello2&overwrite=true`;
     let response = await fetch(url,{
         method:"COPY"
     });
@@ -194,7 +194,7 @@ test("copy",async () => {
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     let json = await response.json();
     expect(json).toEqual(true);
-    response = await fetch(`${host}/data/test/test/hello2?version=2`,{
+    response = await fetch(`${host}/data/test/test/hello2`,{
         method:"GET"
     });
     expect(response.status).toBe(200);
@@ -203,7 +203,7 @@ test("copy",async () => {
     expect(json).toEqual("world");
 })
 test("move",async () => {
-    const url = `${host}/data/test/test/hello2?ifVersion=2&key=hello3`;
+    const url = `${host}/data/test/test/hello2?key=hello3&overwrite=true`;
     let response = await fetch(url,{
         method:"MOVE"
     });
@@ -218,6 +218,13 @@ test("move",async () => {
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     json = await response.json();
     expect(json).toEqual("world");
+    response = await fetch(`${host}/data/test/test/hello2`,{
+        method:"GET"
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    json = await response.json();
+    expect(json).toEqual(null);
 })
 test("delete fail by version", async () => {
     const url = `${host}/data/test/test/hello?ifVersion=2`;
@@ -361,6 +368,42 @@ test("patch",async ()=> {
     expect(json.address.city).toEqual("Tacoma");
     expect(json.address.state).toEqual("WA");
     expect(json.address.zip).toEqual(undefined);
+    await fetch(url,{
+        method:"DELETE"
+    });
+})
+test("patch/get targeted property",async ()=> {
+    let url = `${host}/data/test/test/object`;
+    let response = await fetch(url,{
+        method:"PUT",
+        body:JSON.stringify({name:"joe",address:{city:"Seattle",state:"WA",zip:"98101"}},serializeSpecial())
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    let json = await response.json();
+    expect(json).toEqual(true);
+    response = await fetch(url + "/address/zip",{
+        method:"PATCH",
+        body:JSON.stringify("98102")
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    json = await response.json();
+    expect(json).toEqual(true);
+    response = await fetch(url);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    const text = await response.text();
+    json = JSON.parse(text);
+    expect(json.name).toEqual("joe");
+    expect(json.address.city).toEqual("Seattle");
+    expect(json.address.state).toEqual("WA");
+    expect(json.address.zip).toEqual("98102");
+    response = await fetch(url+"/address/zip");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    json = await response.json();
+    expect(json).toEqual("98102");
     await fetch(url,{
         method:"DELETE"
     });

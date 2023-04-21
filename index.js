@@ -108,10 +108,16 @@ const serializer = (value) => {
 }
 
 const serve = async (arg={}) => {
-    const lmdbQuery = await import("./node_modules/lmdb-query/index.js"),
+    const lmdbExtend = await import("./node_modules/lmdb-extend/index.js"),
+        lmdbQuery = await import("./node_modules/lmdb-query/index.js"),
         lmdbPatch = await import("./node_modules/lmdb-patch/index.js"),
+        lmdbCopy = await import("./node_modules/lmdb-copy/index.js"),
+        lmdbMove = await import("./node_modules/lmdb-move/index.js"),
+        {withExtensions} = lmdbExtend,
         {getRangeWhere} = lmdbQuery,
-        {patch} = lmdbPatch;
+        {patch} = lmdbPatch,
+        {copy} = lmdbCopy,
+        {move} = lmdbMove;
     console.log(path.normalize(path.join(process.cwd(),arg)));
     const {serverOptions={},clusterOptions={},appOptions={},databaseOptions={}} = typeof(arg)==="string" ? require(path.normalize(path.join(process.cwd(),arg))) : arg;
     const {maxCPUs} = clusterOptions,
@@ -124,7 +130,7 @@ const serve = async (arg={}) => {
         if(envdb) {
             for(const [name,config] of Object.entries(databases)) {
                 config.options = {...(config.inheritEnvironment ? envOptions : {}),...config.options||{}};
-                config.functions = {getRangeWhere,patch,...(config.inheritEnvironment ? envOptions : {}),...options.function||{}};
+                config.functions = {getRangeWhere,patch,copy,move,...(config.inheritEnvironment ? envOptions : {}),...options.function||{}};
                 const db = envdb.openDB(name, databases[name].options);
                 await db.close()
             }
@@ -212,17 +218,12 @@ const serve = async (arg={}) => {
                     }
                     const envdb = open(environment, env.options),
                         db = envdb.openDB({name, ...env.databases[name].options});
-                    Object.entries(env.databases[name].functions).forEach(([fname, f]) => {
-                        db[fname] = f;
-                    });
-                    let {version, ifVersion} = request.query;
+                    withExtensions(db, env.databases[name].functions);
+                    let {version, ifVersion,overwrite} = request.query;
                     version = coerce(version, "number");
                     ifVersion = coerce(ifVersion, "number");
-                    const entry = db.getEntry(key, {versions: true});
-                    let result = false;
-                    if (entry.version == ifVersion) {
-                        result = await db.put(request.query.key, entry.value, version);
-                    }
+                    overwrite = coerce(overwrite, "boolean");
+                    let result = await db.copy(key, request.query.key, {version, ifVersion, overwrite});
                     await db.close();
                     reply.type("application/json");
                     return result + "";
@@ -249,9 +250,7 @@ const serve = async (arg={}) => {
                 }
                 const envdb = open(environment,env.options),
                     db = envdb.openDB({name,...env.databases[name].options});
-                Object.entries({...env.databases[name].functions}).forEach(([fname,f]) => {
-                    db[fname] = f;
-                })
+                withExtensions(db, env.databases[name].functions);
                 let {ifVersion} = request.query
                 ifVersion = coerce(ifVersion,"number");
                 let result = false;
@@ -285,9 +284,7 @@ const serve = async (arg={}) => {
                 }
                 const envdb = open(environment,env.options),
                     db = envdb.openDB({name,...env.databases[name].options});
-                Object.entries(env.databases[name].functions).forEach(([fname,f]) => {
-                    db[fname] = f;
-                })
+                withExtensions(db, env.databases[name].functions);
                 let {versions,version,start,end,limit,offset,keyMatch,valueMatch,select} = request.query;
                 versions = coerce(versions,"boolean");
                 version = coerce(version,"number");
@@ -345,9 +342,7 @@ const serve = async (arg={}) => {
                 }
                 const envdb = open(environment,env.options),
                     db = envdb.openDB({name,...env.databases[name].options});
-                Object.entries(env.databases[name].functions).forEach(([fname,f]) => {
-                    db[fname] = f;
-                })
+                withExtensions(db, env.databases[name].functions);
                 let {version,entry} = request.query;
                 version = coerce(version,"number");
                 entry = coerce(entry,"boolean");
@@ -356,6 +351,80 @@ const serve = async (arg={}) => {
                 reply.type("application/json; charset=utf-8");
                 reply.serializer(serializer);
                 return e && (!version || e.version===version) ? (entry ? {key,...e} : e.value): null;
+            })
+            .get(dbroute + '/:key/*', async (request,reply) => {
+                const {environment, name, key} = request.params,
+                    parts = request.url.split("/").slice(5);
+                let env = environments[environment];
+                if (!env) {
+                    if (!dynamicEnvironment) throw new Error("Environment not found")
+                    env = environments[environment] = {
+                        databases: {},
+                        options:{...(dynamicEnvironment.inheritDefaults ? defaultEnvironment.options||{} : {}),...dynamicEnvironment?.options||{}},
+                        functions:{...(dynamicEnvironment.inheritDefaults ? defaultEnvironment.functions||{} : {}),...dynamicEnvironment?.options||{}}
+
+                    }
+                }
+                if (env.databases[name] === undefined) {
+                    if (!dynamicDatabase) throw new Error("Database not found");
+                    env.databases[name] = {
+                        options:{...(dynamicDatabase.inheritEnvironment ? env.options : {}),...dynamicDatabase?.options||{}},
+                        functions:{...(dynamicDatabase.inheritEnvironment? env.functions : {}),...dynamicDatabase?.functions||{}}
+                    };
+                }
+                const envdb = open(environment,env.options),
+                    db = envdb.openDB({name,...env.databases[name].options});
+                withExtensions(db, env.databases[name].functions);
+                let {ifVersion} = request.query;
+                ifVersion = coerce(ifVersion,"number");
+                const entry = db.getEntry(key,{versions:true});
+                let result = null
+                if (entry && (!ifVersion || entry.version == ifVersion)) {
+                    let node = entry.value;
+                    for(let i = 0; i < parts.length && node!=null; i++) {
+                        node = node[parts[i]];
+                    }
+                    result = node===undefined ? null : node;
+                }
+                await db.close();
+                reply.type("application/json; charset=utf-8");
+                reply.serializer(serializer);
+                return result;
+            })
+            .route({
+                method:"MOVE",
+                url:dbroute + '/:key',
+                handler: async (request,reply) => {
+                    const {environment, name, key} = request.params;
+                    let env = environments[environment];
+                    if (!env) {
+                        if (!dynamicEnvironment) throw new Error("Environment not found")
+                        env = environments[environment] = {
+                            databases: {},
+                            options: {...(dynamicEnvironment.inheritDefaults ? defaultEnvironment.options || {} : {}), ...dynamicEnvironment?.options || {}},
+                            functions: {...(dynamicEnvironment.inheritDefaults ? defaultEnvironment.functions || {} : {}), ...dynamicEnvironment?.options || {}}
+
+                        }
+                    }
+                    if (env.databases[name] === undefined) {
+                        if (!dynamicDatabase) throw new Error("Database not found");
+                        env.databases[name] = {
+                            options: {...(dynamicDatabase.inheritEnvironment ? env.options : {}), ...dynamicDatabase?.options || {}},
+                            functions: {...(dynamicDatabase.inheritEnvironment ? env.functions : {}), ...dynamicDatabase?.functions || {}}
+                        };
+                    }
+                    const envdb = open(environment, env.options),
+                        db = envdb.openDB({name, ...env.databases[name].options});
+                    withExtensions(db, env.databases[name].functions);
+                    let {version, ifVersion, overwrite} = request.query;
+                    version = coerce(version, "number");
+                    ifVersion = coerce(ifVersion, "number");
+                    overwrite = coerce(overwrite, "boolean");
+                    let result = await db.move(key,request.query.key,overwrite,version,ifVersion);
+                    await db.close();
+                    reply.type("application/json");
+                    return result + "";
+                }
             })
             .patch(dbroute + '/:key', async (request,reply) => {
                 const { environment,name, key } = request.params;
@@ -378,9 +447,7 @@ const serve = async (arg={}) => {
                 }
                 const envdb = open(environment,env.options),
                     db = envdb.openDB({name,...env.databases[name].options});
-                Object.entries(env.databases[name].functions).forEach(([fname,f]) => {
-                    db[fname] = f;
-                });
+                withExtensions(db, env.databases[name].functions);
                 let {version,ifVersion} = request.query;
                 version = coerce(version,"number");
                 ifVersion = coerce(ifVersion,"number");
@@ -413,11 +480,9 @@ const serve = async (arg={}) => {
                         })
                     }
              */
-            .route({
-                method:"MOVE",
-                url:dbroute + '/:key',
-                handler: async (request,reply) => {
-                    const {environment, name, key} = request.params;
+            .patch(dbroute + '/:key/*',async (request,reply) => {
+                    const {environment, name, key} = request.params,
+                        parts = request.url.split("/").slice(5);
                     let env = environments[environment];
                     if (!env) {
                         if (!dynamicEnvironment) throw new Error("Environment not found")
@@ -437,30 +502,33 @@ const serve = async (arg={}) => {
                     }
                     const envdb = open(environment, env.options),
                         db = envdb.openDB({name, ...env.databases[name].options});
-                    Object.entries(env.databases[name].functions).forEach(([fname, f]) => {
-                        db[fname] = f;
-                    });
-                    let {version, ifVersion} = request.query;
+                    withExtensions(db, env.databases[name].functions);
+                    let {version, ifVersion, extend} = request.query;
                     version = coerce(version, "number");
                     ifVersion = coerce(ifVersion, "number");
+                    extend = coerce(extend, "boolean");
                     const entry = db.getEntry(key, {versions: true});
-                    let result = false;
-                    if (entry.version == ifVersion) {
-                        await db.transaction(async () => {
-                            result = await db.put(request.query.key, entry.value, version);
-                            if(!result) {
-                                throw new Error(`Failed to create copy ${request.query.key} from ${key} when moving.`)
+                    let node = entry.value,
+                        result = false;
+                    if (!ifVersion || entry.version == ifVersion) {
+                        for(let i = 0; i < parts.length; i++) {
+                            if(i===parts.length-1) {
+                                node[parts[i]] = deserialize(request.body);
+                                result = await db.put(key, serializeSpecial()(null,entry.value), version,ifVersion);
+                                break;
                             }
-                            result = await db.remove(key,ifVersion);
-                            if(!result) {
-                                throw new Error(`Failed to delete ${key} when moving to ${request.query.key}.`)
+                            const nextnode = node[parts[i]];
+                            if(!nextnode || typeof(nextnode)!=="object") {
+                                if(extend) node = node[parts[i]] = {};
+                                else break;
+                            } else {
+                                node = nextnode;
                             }
-                        })
+                        }
                     }
                     await db.close();
                     reply.type("application/json");
                     return result + "";
-                }
             })
             .put(dbroute + '/:key', async (request,reply) => {
                 const { environment,name, key } = request.params;
@@ -483,9 +551,7 @@ const serve = async (arg={}) => {
                 }
                 const envdb = open(environment,env.options),
                     db = envdb.openDB({name,...env.databases[name].options});
-                Object.entries(env.databases[name].functions).forEach(([fname,f]) => {
-                    db[fname] = f;
-                });
+                withExtensions(db, env.databases[name].functions);
                 let {version,ifVersion} = request.query;
                 version = coerce(version,"number");
                 ifVersion = coerce(ifVersion,"number");

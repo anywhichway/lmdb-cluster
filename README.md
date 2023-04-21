@@ -5,10 +5,11 @@ LMDB functionality for put, get, remove, and range queries with versions is supp
 
 Also supported are:
 
-1. patch operations for partial object updates via [lmdb-patch](https://github.com/anywhichway/lmdb-patch),
-2. copy operations using the HTTP verb `COPY`
-3. move operations using the HTTP verb `MOVE`
-4. a query mechanism that supports functional, declarative and RegExp filters via [lmdb-query](https://github.com/anywhichway/lmdb-query).
+1. basic patch operations for partial object updates via [lmdb-patch](https://github.com/anywhichway/lmdb-patch),
+2. selective patch operations through extended paths,
+3. copy operations using the HTTP verb `COPY`
+4. move operations using the HTTP verb `MOVE`
+5. a query mechanism that supports functional, declarative and RegExp filters via [lmdb-query](https://github.com/anywhichway/lmdb-query).
 
 LMDB start-up options for encryption, compression, etc. are also supported.
 
@@ -154,11 +155,17 @@ Deletes a value from the database `:name` with `:key`. Optionally, only deletes 
 
 Returns `true` or `false` depending on whether the value was deleted, i.e. if the value did not exist or the version did not match `false` is returned.
 
-## GET /data/:environment/:name/:key?ifVersion=:ifversion
+## GET /data/:environment/:name/:key?ifVersion=:ifversion&entry=:entry
 
-Gets a value from the database `:name` with `:key`. Optionally, only gets if the version of the value is `:ifversion`.
+Gets a value from the database `:name` with `:key`. If `:entry` is `true`, then the value is returned as an object with the properties `value` and `version`.
 
-Returns the value or `null` if the value does not exist or the version does not match.
+Returns the value or `null` if the value does not exist or the version does not match `:ifVersion` when provided.
+
+## GET /data/:environment/:name/:key/*?ifVersion=:ifversion
+
+Gets a value from the database `:name` with `:key` and subpath `*`. Optionally, only gets if the version of the root value is `:ifversion`.
+
+Returns the value or `null` if the root or leaf value does not exist or the version does not match.
 
 ## GET /data/:environment/:name/?start=:start&end=:end&keyMatch=:keyMatch&valueMatch=:valueMatch&select=:select&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions
 
@@ -206,7 +213,15 @@ Moves the value at `:key` to `:newKey`. The `newKey` will be in the same `:envir
 
 ## PATCH /data/:environment/:name/:key?version=:version&ifVersion=:ifversion
 
-Patches a value (the contents of the request body) into the database `:name` at the `:key`, optionally with the `version` provided. If `ifVersion` is provided, only patches if the version of the old value is `:ifversion`.
+Patches a value (the contents of the request body) into the database `:name` at the `:key`, using `Object.assign`, optionally with the `version` provided. If `ifVersion` is provided, only patches if the version of the old value is `:ifversion`.
+
+If the existing value is a primitive type or the new value is a primitive type, the existing value is replaced with the patch. Otherwise, the patch is merged into the object. By serializing `undefined` to "@undefined" as the value for properties you wish to delete, `PATCH` can be used to delete properties (including nested ones).
+
+## PATCH /data/:environment/:name/:key/*?version=:version&ifVersion=:ifversion
+
+Patches a value (the contents of the request body) into the database `:name` at the `:key`, and subpath `*`, optionally with the `version` provided. If `ifVersion` is provided, only patches if the version of the old value is `:ifversion`.
+
+This approach is useful when you wish to patch portions of a sub-object without needing a copy of the parent data. For example, if you have a document with a `user` object, you can patch the `user.address.zip` without needing a copy of the data outside of address or even the city and state in the address sub-object. This might not only more efficient, but also more secure.
 
 If the existing value is a primitive type or the new value is a primitive type, the existing value is replaced with the patch. Otherwise, the patch is merged into the object. By serializing `undefined` to "@undefined" as the value for properties you wish to delete, `PATCH` can be used to delete properties (including nested ones).
 
@@ -230,6 +245,8 @@ The Socket.io library and some of the other libraries used by this library are m
 v2.0.0 - Socket API
 
 # Release History (Reverse Chronological Order)
+
+2023-04-20 v0.4.0 Now using `lmdb-copy`, `lmdb-move`, and `lmdb-extend` for `COPY`, `MOVE` instead of local code. Added support for targeted nested get and patching.
 
 2023-04-19 v0.3.0 Added support for `COPY` and `MOVE`.
 
