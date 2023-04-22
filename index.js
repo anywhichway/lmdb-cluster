@@ -113,11 +113,14 @@ const serve = async (arg={}) => {
         lmdbPatch = await import("./node_modules/lmdb-patch/index.js"),
         lmdbCopy = await import("./node_modules/lmdb-copy/index.js"),
         lmdbMove = await import("./node_modules/lmdb-move/index.js"),
+        lmdbIndex = await import("./node_modules/lmdb-index/index.js"),
         {withExtensions} = lmdbExtend,
         {getRangeWhere} = lmdbQuery,
         {patch} = lmdbPatch,
         {copy} = lmdbCopy,
-        {move} = lmdbMove;
+        {move} = lmdbMove,
+        {defineSchema,put,remove,getRangeFromIndex} = lmdbIndex;
+
     console.log(path.normalize(path.join(process.cwd(),arg)));
     const {serverOptions={},clusterOptions={},appOptions={},databaseOptions={}} = typeof(arg)==="string" ? require(path.normalize(path.join(process.cwd(),arg))) : arg;
     const {maxCPUs} = clusterOptions,
@@ -130,7 +133,7 @@ const serve = async (arg={}) => {
         if(envdb) {
             for(const [name,config] of Object.entries(databases)) {
                 config.options = {...(config.inheritEnvironment ? envOptions : {}),...config.options||{}};
-                config.functions = {getRangeWhere,patch,copy,move,...(config.inheritEnvironment ? envOptions : {}),...options.function||{}};
+                config.functions = {getRangeWhere,getRangeFromIndex,defineSchema,copy,move,patch,put,...(config.inheritEnvironment ? envOptions : {}),...options.function||{}};
                 const db = envdb.openDB(name, databases[name].options);
                 await db.close()
             }
@@ -529,6 +532,49 @@ const serve = async (arg={}) => {
                     await db.close();
                     reply.type("application/json");
                     return result + "";
+            })
+            .put(dbroute + '/', async (request,reply) => {
+                const { environment,name} = request.params,
+                    key = null;
+                let env = environments[environment];
+                if (!env) {
+                    if (!dynamicEnvironment) throw new Error("Environment not found")
+                    env = environments[environment] = {
+                        databases: {},
+                        options:{...(dynamicEnvironment.inheritDefaults ? defaultEnvironment.options||{} : {}),...dynamicEnvironment?.options||{}},
+                        functions:{...(dynamicEnvironment.inheritDefaults ? defaultEnvironment.functions||{} : {}),...dynamicEnvironment?.options||{}}
+
+                    }
+                }
+                if (env.databases[name] === undefined) {
+                    if (!dynamicDatabase) throw new Error("Database not found");
+                    env.databases[name] = {
+                        options:{...(dynamicDatabase.inheritEnvironment ? env.options : {}),...dynamicDatabase?.options||{}},
+                        functions:{...(dynamicDatabase.inheritEnvironment? env.functions : {}),...dynamicDatabase?.functions||{}}
+                    };
+                }
+                const envdb = open(environment,env.options),
+                    db = envdb.openDB({name,...env.databases[name].options});
+                withExtensions(db, env.databases[name].functions);
+                db.defineSchema(Object); // temporary
+                let {version,ifVersion} = request.query;
+                version = coerce(version,"number");
+                ifVersion = coerce(ifVersion,"number");
+                const value = serializeSpecial()(null,deserialize(request.body));
+                let result = false;
+                if(version && ifVersion) {
+                    result = await db.put(key, value,version,ifVersion);
+                } else if(version) {
+                    result = await db.put(key, value,version)
+                } else if(ifVersion) {
+                    result = await db.put(key, value, ifVersion, ifVersion)
+                } else {
+                    result = await db.put(key, value)
+                }
+                await db.close();
+                reply.type("application/json");
+               // return result + "";
+                return JSON.stringify(value["#"]);
             })
             .put(dbroute + '/:key', async (request,reply) => {
                 const { environment,name, key } = request.params;

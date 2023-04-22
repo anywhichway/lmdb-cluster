@@ -408,3 +408,23 @@ test("patch/get targeted property",async ()=> {
         method:"DELETE"
     });
 })
+test("index",async ()=> {
+    const url = `${host}/data/test/test/`;
+    let response = await fetch(url,{
+        method:"PUT",
+        body:JSON.stringify({name:"joe",address:{city:"Seattle",state:"WA",zip:"98101"}},serializeSpecial())
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    let json = await response.json();
+    expect(typeof(json)).toEqual("string");
+    response = await fetch(url+json);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+    const text = await response.text();
+    json = JSON.parse(text);
+    expect(json.name).toEqual("joe");
+    await fetch(url+json,{
+        method:"DELETE"
+    });
+})

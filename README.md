@@ -1,5 +1,5 @@
 # lmdb-cluster
-A clustered version of lmdb that supports a REST API with sockets planned.
+A clustered version of lmdb that supports an HTTP API with sockets planned.
 
 LMDB functionality for put, get, remove, and range queries with versions is supported. 
 
@@ -10,12 +10,15 @@ Also supported are:
 3. copy operations using the HTTP verb `COPY`
 4. move operations using the HTTP verb `MOVE`
 5. a query mechanism that supports functional, declarative and RegExp filters via [lmdb-query](https://github.com/anywhichway/lmdb-query).
+6. a search mechanism based on indexes via [lmdb-index](https://github.com/anywhichway/lmdb-index).
 
 LMDB start-up options for encryption, compression, etc. are also supported.
 
 This is ALPHA software. Full unit tests not yet in place. API may change. Not functionally complete.
 
 See also:
+
+[LMDB Index](https://github.com/anywhichway/lmdb-index) - Higher level object operations for LMDB values, e.g. indexing and indexed based queries.
 
 [LMDB Query](https://github.com/anywhichway/lmdb-query) - A higher level query mechanism for LMDB supporting functional, declarative and RegExp filters without the overhead of an entire database wrapper.
 
@@ -45,19 +48,20 @@ serve({environments:{test:{useVersions:true,databases:{test:null}}}}).then((serv
 });
 ```
 
-# REST API
+# HTTP API
 
-General REST API approach is to use the HTTP verbs to indicate the database function to be called:
+General API approach is to use the HTTP verbs to indicate the database function to be called:
 
-- COPY - no underlying LMDB operation
+- COPY - no underlying LMDB operation, but the capability is provided by `lmdb-copy`.
 - DELETE - removeXXX
 - GET - getXXX
-- MOVE - no underlying LMDB operation
+- MOVE - no underlying LMDB operation, but the capability is provided by `lmdb-move`.
 - PATCH - no underlying LMDB operation, but the capability is provided by `lmdb-patch`.
 - PUT - putXXX
 - POST - transaction and other activities that are not simple database operations. (not yet implemented)
+- SEARCH - no underlying LMDB operation, but the capability is provided by `lmdb-index`. (not yet implemented)
 
-The last portion of a URL path is typically a `URLEncoded` string that is the key for the database operation, although when the key is missing, a range get or query is presumed.
+The last portion of a URL path is typically a `URLEncoded` string that is the key for the database operation, although when the key is missing, a range get, query, search or indexed object put is presumed.
 
 A query string is used to pass arguments to the database operation, with the exception of data to be put into the database, which is passed in the body of a request.
 
@@ -145,29 +149,31 @@ If `dynamicEnvironment` is present and an attempt is made to open an environment
 
 `dynamicDatabaseOptions` are used in the same way as `dynamicEnvironmentOptions` for child databases. The `dynamicEnvironmentOptions` are automatically used if neither the parent environment is configured to have it's options inherited or `dynamicDatabaseOptions` is present.  Be careful with this, as it can be a DOS security risk.
 
-## COPY /data/:environment/:name/:key?key=:newKey,&version=:version&ifVersion=:ifversion
+The return values below are JSON encoded in the body of the response.
+
+## COPY /data/:environment/:name/:key?key=:newKey,&version=:version&ifVersion=:ifversion - returns boolean
 
 Copies the value at `:key` to `:newKey`. The `newKey` will be in the same `:environment` and database. If `:version` is provided, it will be used for the copy. Copying will only occur when the version of the original matches `:ifversion`, when `:ifversion` is provided. Returns `true` if successful, otherwise `false`.
 
-## DELETE /data/:environment/:name/:key?ifVersion=:ifversion
+## DELETE /data/:environment/:name/:key?ifVersion=:ifversion - returns boolean
 
 Deletes a value from the database `:name` with `:key`. Optionally, only deletes if the version of the value is `:ifversion`.
 
 Returns `true` or `false` depending on whether the value was deleted, i.e. if the value did not exist or the version did not match `false` is returned.
 
-## GET /data/:environment/:name/:key?ifVersion=:ifversion&entry=:entry
+## GET /data/:environment/:name/:key?ifVersion=:ifversion&entry=:entry - returns any value
 
 Gets a value from the database `:name` with `:key`. If `:entry` is `true`, then the value is returned as an object with the properties `value` and `version`.
 
 Returns the value or `null` if the value does not exist or the version does not match `:ifVersion` when provided.
 
-## GET /data/:environment/:name/:key/*?ifVersion=:ifversion
+## GET /data/:environment/:name/:key/*?ifVersion=:ifversion - returns any value
 
 Gets a value from the database `:name` with `:key` and subpath `*`. Optionally, only gets if the version of the root value is `:ifversion`.
 
 Returns the value or `null` if the root or leaf value does not exist or the version does not match.
 
-## GET /data/:environment/:name/?start=:start&end=:end&keyMatch=:keyMatch&valueMatch=:valueMatch&select=:select&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions
+## GET /data/:environment/:name/?start=:start&end=:end&keyMatch=:keyMatch&valueMatch=:valueMatch&select=:select&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions - returns result object
 
 Gets a range of values from the database `:name`. ***Note***: Trailing slash is REQUIRED.
 
@@ -184,6 +190,8 @@ The `offset` is the number of values to skip before returning values. It is used
 The `:reverse` is a boolean that indicates whether the range should be returned in reverse order. 
 
 The `:versions` is a boolean that indicates whether the version of each value should be returned.
+
+### Result Object
 
 Returns a result object with the surface that is similar to the standard [iterable](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols) result object:
 
@@ -207,17 +215,17 @@ The items in the value array have the surface:
 
 If `offset` is present, then the range is not complete. Request the exact same URL as before, but with the `offset` set to the value of the `offset` property of the result object. This will return the next page of results. When a JavaScript client library is written, the object will even have a `next()` method.
 
-## MOVE /data/:environment/:name/:key?key=:newKey,&version=:version&ifVersion=:ifversion
+## MOVE /data/:environment/:name/:key?key=:newKey,&version=:version&ifVersion=:ifversion - returns boolean
 
 Moves the value at `:key` to `:newKey`. The `newKey` will be in the same `:environment` and database. If `:version` is provided, it will be used for the moved version. Moving will only occur when the version of the original matches `:ifversion`, when `:ifversion` is provided. Returns `true` if successful, otherwise `false`. The actual move involves making a copy and deleting the original inside a transaction.
 
-## PATCH /data/:environment/:name/:key?version=:version&ifVersion=:ifversion
+## PATCH /data/:environment/:name/:key?version=:version&ifVersion=:ifversion - returns boolean
 
 Patches a value (the contents of the request body) into the database `:name` at the `:key`, using `Object.assign`, optionally with the `version` provided. If `ifVersion` is provided, only patches if the version of the old value is `:ifversion`.
 
 If the existing value is a primitive type or the new value is a primitive type, the existing value is replaced with the patch. Otherwise, the patch is merged into the object. By serializing `undefined` to "@undefined" as the value for properties you wish to delete, `PATCH` can be used to delete properties (including nested ones).
 
-## PATCH /data/:environment/:name/:key/*?version=:version&ifVersion=:ifversion
+## PATCH /data/:environment/:name/:key/*?version=:version&ifVersion=:ifversion - returns boolean
 
 Patches a value (the contents of the request body) into the database `:name` at the `:key`, and subpath `*`, optionally with the `version` provided. If `ifVersion` is provided, only patches if the version of the old value is `:ifversion`.
 
@@ -225,10 +233,17 @@ This approach is useful when you wish to patch portions of a sub-object without 
 
 If the existing value is a primitive type or the new value is a primitive type, the existing value is replaced with the patch. Otherwise, the patch is merged into the object. By serializing `undefined` to "@undefined" as the value for properties you wish to delete, `PATCH` can be used to delete properties (including nested ones).
 
-## PUT /data/:environment/:name/:key?version=:version&ifVersion=:ifversion
+## PUT /data/:environment/:name/?version=:version&ifVersion=:ifversion - returns id
+
+Puts an object value, assigns and id if needed, indexes the object, and returns the id. The object is the contents of the request body. If `:version` is provided, it will be used for the version. Putting will only occur when the version of the original matches `:ifversion`, when `:ifversion` is provided. Returns the id of the object.
+
+## PUT /data/:environment/:name/:key?version=:version&ifVersion=:ifversion - returns boolean
 
 Puts a value (the contents of the request body) into the database `:name` at the `:key`, optionally with the `version` provided. If `ifVersion` is provided, only puts if the version of the old value is `:ifversion`.
 
+## SEARCH /data/:environment/:name/pattern=:pattern&valueMatch=:valueMatch&select=:select&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions - returns result object
+
+Uses [lmdb-index](https://github.com/anywhichway/lmdb-index) to search the database `:name` for the `:pattern` and returns a range of values. The `:pattern` is a JSON.stringified `URLEncoded` string. The remaining parameters are the same as for `GET /data/:environment/:name/range=:range&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions`.
 
 # FAQS
 
@@ -245,6 +260,8 @@ The Socket.io library and some of the other libraries used by this library are m
 v2.0.0 - Socket API
 
 # Release History (Reverse Chronological Order)
+
+2023-04-22 v0.5.0 Added support for `PUT` of objects without a key and indexing.
 
 2023-04-20 v0.4.0 Now using `lmdb-copy`, `lmdb-move`, and `lmdb-extend` for `COPY`, `MOVE` instead of local code. Added support for targeted nested get and patching.
 
