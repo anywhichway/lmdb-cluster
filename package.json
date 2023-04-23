@@ -1,6 +1,6 @@
 {
   "name": "lmdb-cluster",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "A clustered version of lmdb that supports an HTTP VERB (REST+) API with sockets planned",
   "main": "index.js",
   "scripts": {
@@ -30,11 +30,11 @@
     "fastify-socket.io": "^4.0.0",
     "lmdb": "^2.7.11",
     "lmdb-copy": "^0.0.1",
-    "lmdb-extend": "^1.0.0",
-    "lmdb-index": "^0.1.1",
+    "lmdb-extend": "^1.2.0",
+    "lmdb-index": "^0.3.0",
     "lmdb-move": "^0.0.1",
     "lmdb-patch": "^1.0.2",
-    "lmdb-query": "^1.1.3",
+    "lmdb-query": "^1.2.0",
     "socket.io": "^4.6.1"
   },
   "devDependencies": {

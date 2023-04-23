@@ -10,6 +10,7 @@ const { setupMaster, setupWorker } = require("@socket.io/sticky");
 const { createAdapter, setupPrimary } = require("@socket.io/cluster-adapter");
 const {open} = require("lmdb");
 
+
 const coerce = (value,type,...types) => {
     const t = typeof(value);
     if(type==t || value===undefined) return value;

@@ -266,6 +266,8 @@ v2.0.0 - Socket API
 
 # Release History (Reverse Chronological Order)
 
+2023-04-23 v0.6.1 Updated lmdb-query and lmdb-index to better support index based queries.
+
 2023-04-23 v0.6.0 Added support for index based queries.
 
 2023-04-22 v0.5.0 Added support for `PUT` of objects without a key plus indexing.
