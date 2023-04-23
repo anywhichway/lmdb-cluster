@@ -288,17 +288,20 @@ const serve = async (arg={}) => {
                 const envdb = open(environment,env.options),
                     db = envdb.openDB({name,...env.databases[name].options});
                 withExtensions(db, env.databases[name].functions);
-                let {versions,version,start,end,limit,offset,keyMatch,valueMatch,select} = request.query;
+                let {versions,version,start,end,limit,offset,indexMatch,keyMatch,valueMatch,select} = request.query;
                 versions = coerce(versions,"boolean");
                 version = coerce(version,"number");
                 limit = coerce(limit,"number");
                 offset = coerce(offset,"number");
                 start = coerce(start,"object","string");
                 end = coerce(end,"object","string");
+                indexMatch = coerce(indexMatch,"object","string");
                 keyMatch = coerce(keyMatch,"object","string");
                 valueMatch = coerce(valueMatch,"object","string");
                 select = coerce(select,"object","string");
-                const range = keyMatch ? db.getRangeWhere(keyMatch,valueMatch,select,{offset,versions:version ? true : versions===true}) : db.getRange({start,end,offset,versions:version ? true : versions===true});
+                const range = indexMatch ? db.getRangeFromIndex(indexMatch,valueMatch,select,{offset,versions:version ? true : versions===true})
+                    : keyMatch ? db.getRangeWhere(keyMatch,valueMatch,select,{offset,versions:version ? true : versions===true})
+                        : db.getRange({start,end,offset,versions:version ? true : versions===true});
                 const result = {
                     done: false,
                     value: [],

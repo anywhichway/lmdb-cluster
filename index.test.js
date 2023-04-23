@@ -412,19 +412,21 @@ test("index",async ()=> {
     const url = `${host}/data/test/test/`;
     let response = await fetch(url,{
         method:"PUT",
-        body:JSON.stringify({name:"joe",address:{city:"Seattle",state:"WA",zip:"98101"}},serializeSpecial())
+        body:JSON.stringify({name:"janet",address:{city:"Seattle",state:"WA",zip:"98101"}},serializeSpecial())
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     let json = await response.json();
     expect(typeof(json)).toEqual("string");
-    response = await fetch(url+json);
+    response = await fetch(url+`?indexMatch=${JSON.stringify({name:"janet"})}`);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
     const text = await response.text();
     json = JSON.parse(text);
-    expect(json.name).toEqual("joe");
-    await fetch(url+json,{
+    expect(json.value).toBeInstanceOf(Array);
+    expect(json.value.length).toEqual(1);
+    expect(json.value[0].value.name).toEqual("janet");
+    await fetch(url+json.value[0].key,{
         method:"DELETE"
     });
 })

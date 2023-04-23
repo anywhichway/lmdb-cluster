@@ -54,14 +54,13 @@ General API approach is to use the HTTP verbs to indicate the database function 
 
 - COPY - no underlying LMDB operation, but the capability is provided by `lmdb-copy`.
 - DELETE - removeXXX
-- GET - getXXX
+- GET - getXXX, plus querying based on URL query string parameters when a key is not provided
 - MOVE - no underlying LMDB operation, but the capability is provided by `lmdb-move`.
 - PATCH - no underlying LMDB operation, but the capability is provided by `lmdb-patch`.
 - PUT - putXXX
 - POST - transaction and other activities that are not simple database operations. (not yet implemented)
-- SEARCH - no underlying LMDB operation, but the capability is provided by `lmdb-index`. (not yet implemented)
 
-The last portion of a URL path is typically a `URLEncoded` string that is the key for the database operation, although when the key is missing, a range get, query, search or indexed object put is presumed.
+The last portion of a URL path is typically a `URLEncoded` string that is the key for the database operation, although when the key is missing, a range get, query, search or indexed object action is presumed.
 
 A query string is used to pass arguments to the database operation, with the exception of data to be put into the database, which is passed in the body of a request.
 
@@ -173,23 +172,31 @@ Gets a value from the database `:name` with `:key` and subpath `*`. Optionally, 
 
 Returns the value or `null` if the root or leaf value does not exist or the version does not match.
 
-## GET /data/:environment/:name/?start=:start&end=:end&keyMatch=:keyMatch&valueMatch=:valueMatch&select=:select&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions - returns result object
+## GET /data/:environment/:name/?start=:start&end=:end&indexMatch=:indexMatch&keyMatch=:keyMatch&valueMatch=:valueMatch&select=:select&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions - returns result object
 
 Gets a range of values from the database `:name`. ***Note***: Trailing slash is REQUIRED.
 
-All query string arguments are optional. However, failing  to provide a `:start` or `:end` will result in a full database scan.
+All query string arguments are optional. However, failing  to provide one of `:start`, `:indexMatch` or `keyMatch` will result in a full database scan.
 
-The range can be from `:start` to `:end`. The `:start` and `:end` are JSON.stringified `URLEncoded` strings. The `:start` and `end` follow the same form as LMDB [range options](https://github.com/kriszyp/lmdb-js#rangeoptions).
+Only one of `:start`, `:indexMatch` or `keyMatch` can be provided. And, `:end` is only used with `:start`.
 
-Alternatively, `:keyMatch`, `:valueMatch` and `:select` can be used to specify a range for `getRangeWhere` from [lmdb-query](https://github.com/anywhichway/lmdb-query). Like `:start` and `:end`, these are JSON.stringified `URLEncoded` strings.
+The `:start` and `:end` are JSON.stringified `URLEncoded` strings. The `:start` and `end` follow the same form as LMDB [range options](https://github.com/kriszyp/lmdb-js#rangeoptions).
+
+Alternatively, `:keyMatch`, can be used to specify a range for `getRangeWhere` from [lmdb-query](https://github.com/anywhichway/lmdb-query). Like `:start` and `:end`, this is a JSON.stringified `URLEncoded` string.
+
+Or, `:indexMatch` uses a JSON.stringified `URLEncoded` string with  [lmdb-index](https://github.com/anywhichway/lmdb-index) to search the database and returns a range of values.
+
+The remaining parameters `limit=:limit&offset=:offset&reverse=:reverse&versions=:versions&version="version` are the same.
 
 The `:limit` is the maximum number of values to return.
 
 The `offset` is the number of values to skip before returning values. It is used in conjunction with `:limit` to implement paging.
 
-The `:reverse` is a boolean that indicates whether the range should be returned in reverse order. 
+The `:reverse` is a boolean that indicates whether the range should be returned in reverse order (not yet implemented)
 
 The `:versions` is a boolean that indicates whether the version of each value should be returned.
+
+And `:version` is used to return a value only if the version matches.
 
 ### Result Object
 
@@ -235,15 +242,13 @@ If the existing value is a primitive type or the new value is a primitive type, 
 
 ## PUT /data/:environment/:name/?version=:version&ifVersion=:ifversion - returns id
 
-Puts an object value, assigns and id if needed, indexes the object, and returns the id. The object is the contents of the request body. If `:version` is provided, it will be used for the version. Putting will only occur when the version of the original matches `:ifversion`, when `:ifversion` is provided. Returns the id of the object.
+Puts an object value (note no key is provided above), assigns an id if needed, indexes the object, and returns the id. The object is the contents of the request body. If `:version` is provided, it will be used for the version. Putting will only occur when the version of the original matches `:ifversion`, when `:ifversion` is provided.
+
+Currently, all top level properties on all objects are indexed. Nested properties are not indexed. This may change in the future.
 
 ## PUT /data/:environment/:name/:key?version=:version&ifVersion=:ifversion - returns boolean
 
-Puts a value (the contents of the request body) into the database `:name` at the `:key`, optionally with the `version` provided. If `ifVersion` is provided, only puts if the version of the old value is `:ifversion`.
-
-## SEARCH /data/:environment/:name/pattern=:pattern&valueMatch=:valueMatch&select=:select&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions - returns result object
-
-Uses [lmdb-index](https://github.com/anywhichway/lmdb-index) to search the database `:name` for the `:pattern` and returns a range of values. The `:pattern` is a JSON.stringified `URLEncoded` string. The remaining parameters are the same as for `GET /data/:environment/:name/range=:range&limit=:limit&offset=:offset&reverse=:reverse&versions=:versions`.
+Puts a value (the contents of the request body) into the database `:name` at the `:key`, optionally with the `version` provided. If `ifVersion` is provided, only puts if the version of the old value is `:ifversion`. Note, if you put a value with a `:key` indexing is NOT conducted. If you wish to index the value, use `PUT /data/:environment/:name/?version=:version&ifVersion=:ifversion` instead.
 
 # FAQS
 
@@ -261,7 +266,9 @@ v2.0.0 - Socket API
 
 # Release History (Reverse Chronological Order)
 
-2023-04-22 v0.5.0 Added support for `PUT` of objects without a key and indexing.
+2023-04-23 v0.6.0 Added support for index based queries.
+
+2023-04-22 v0.5.0 Added support for `PUT` of objects without a key plus indexing.
 
 2023-04-20 v0.4.0 Now using `lmdb-copy`, `lmdb-move`, and `lmdb-extend` for `COPY`, `MOVE` instead of local code. Added support for targeted nested get and patching.
 
